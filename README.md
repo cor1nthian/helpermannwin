@@ -11,6 +11,7 @@ ACL
 Registry
 File system
 Services
+WMI
 ```
 Additional helper functions  
   
@@ -22,5 +23,6 @@ Additional helper functions
 Реестр
 Файловая система
 Службы
+WMI
 ```
 Дополнитеотеые вспомогательные функции
