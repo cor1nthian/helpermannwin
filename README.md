@@ -3,7 +3,7 @@
 </p>
   
 # Helpermann
-Helper library / Windows  
+Helper static library / Windows  
   
 Covers:  
 ```
@@ -14,7 +14,7 @@ Services
 ```
 Additional helper functions  
   
-Библиоотека вспомогательных функций / Windows  
+Статическая библиотека вспомогательных функций / Windows  
   
 Покрывает:  
 ```
