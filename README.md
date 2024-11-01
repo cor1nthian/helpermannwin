@@ -1,12 +1,16 @@
+<p align="center">
+  <img src="https://i.imgur.com/n4UC8VX.png" />
+</p>
+  
 # Helpermann
 Helper library / Windows  
   
 Covers:  
 ```
-ACL  
-Services
+ACL
 Registry
 File system
+Services
 ```
 Additional helper functions  
   
@@ -14,9 +18,9 @@ Additional helper functions
   
 Покрывает:  
 ```
-ACL  
-Services
-Registry
-File system
+Списки контроля доступа / ACL
+Реестр
+Файловая система
+Службы
 ```
 Дополнитеотеые вспомогательные фугкции
