@@ -108,7 +108,9 @@ int wmain(int argc, wchar_t* argv[]) {
 	// FSOpResult res = file2Bufffer(fbufw, L"C:\\Users\\admin\\Desktop\\wminamespaceenum.ps1");
 	unsigned long long folderSize = 0;
 	getFolderSize(folderSize, L"C:\\Users\\admin\\Downloads\\v2rayN-Core");
-	std::wcout << fsh.GetFileControlSum(L"C:\\Users\\admin\\Desktop\\wminamespaceenum.ps1", HashType::SHA256) << std::endl;
+	std::wstring fhash;
+	calcFileHash(fhash, L"C:\\Users\\admin\\Desktop\\wminamespaceenum.ps1", HashType::SHA256);
+	std::wcout << fhash << std::endl;
 	// FSOpResult res = file2Bufffer(fbufw, L"C:\\cleantemp.bat");
 	// std::cout << fsh.pathExists(L"C:\\Users\\admin\\Desktop\\SQLQuery1.sql") << std::endl;
 	unsigned char* cmpBuf = 0;

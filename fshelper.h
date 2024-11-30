@@ -164,6 +164,10 @@ FSOpResult file2Buffer(unsigned char* &buffer, const std::wstring filePath, cons
 FSOpResult removeObject(const std::wstring objectPath);
 FSOpResult setFileSize(::HANDLE hFile, ::LARGE_INTEGER NewSize, const bool closeHandle = false);
 FSOpResult setFileSize(std::wstring filePath, ::LARGE_INTEGER NewSize);
+FSOpResult calcBufferHash(std::wstring &hash, const unsigned char* buffer, const size_t bufferSize,
+	const HashType hashType, const bool hashUCase = true);
+FSOpResult calcFileHash(std::wstring &hash, const std::wstring filePath, const HashType hashType,
+	const bool hashUCase = true);
 
 struct BinData {
 	BinData();
@@ -449,13 +453,6 @@ class FSHandler {
 		FSOpResult EnumDrives(std::vector<DriveDesc> &driveList, const bool trimSerialNumber = true,
 			const bool clearList = true, const std::vector<VolumeDesc> *volumeList = 0);
 		FSOpResult GetBinaryFileInfo(const std::wstring binaryPath, BinData& binaryData) const;
-		/* Gets the control sum for a given file
-			Param:
-			[in] path to a file to calc control sum for
-			[in] [default - SHA256] type of control sum to get for a file. Available options : SHA1, SHA256, MD5
-			Returns control sum string */
-		std::wstring GetFileControlSum(const std::wstring filePath,
-			const HashType sumType = HashType::SHA256);
 		FSOpResult CreateFolder(const std::wstring folderPath) const;
 		FSOpResult CreateFolder(const std::wstring folderPath, const SECURITY_ATTRIBUTES *secAttr = 0) const;
 		FSOpResult CreateFolder(const std::wstring folderPath, const SecDesc secDesc) const;
@@ -557,8 +554,12 @@ class FSHandler {
 		friend FSOpResult file2Buffer(unsigned char*& buffer, const std::wstring filePath, const size_t bufferSize,
 			const FileType fileType, const size_t readBufSz);
 		friend FSOpResult removeObject(const std::wstring objectPath);
-		friend FSOpResult SetFileSize(::HANDLE hFile, ::LARGE_INTEGER NewSize, const bool closeHandle);
-		friend FSOpResult SetFileSize(std::wstring filePath, ::LARGE_INTEGER NewSize);
+		friend FSOpResult setFileSize(::HANDLE hFile, ::LARGE_INTEGER NewSize, const bool closeHandle);
+		friend FSOpResult setFileSize(std::wstring filePath, ::LARGE_INTEGER NewSize);
+		friend FSOpResult calcBufferHash(std::wstring &hash, const unsigned char* buffer, const size_t bufferSize,
+			const HashType hashType, const bool hashUCase);
+		friend FSOpResult calcFileHash(std::wstring &hash, const std::wstring filePath, const HashType hashType,
+			const bool hashUCase);
 	protected:
 		FSOpResult attrAnalyzer(bool &isTrue, const unsigned long attr, const std::wstring path);
 	private:

@@ -506,6 +506,110 @@ FSOpResult setFileSize(::HANDLE hFile, ::LARGE_INTEGER newSize, const bool close
 	return FSOpResult::Success;
 }
 
+FSOpResult calcBufferHash(std::wstring &hash, const unsigned char* buffer, const size_t bufferSize,
+	const HashType hashType, const bool hashUCase) {
+	std::wstring ret;
+	::HCRYPTPROV hProv = 0;
+	if (::CryptAcquireContext(&hProv, 0, 0, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) {
+		::HCRYPTPROV hHash = 0;
+		if (::CryptCreateHash(hProv, (ALG_ID)hashType, 0, 0, &hHash)) {
+			if (::CryptHashData(hHash, buffer, bufferSize, 0)) {
+				unsigned long cbHashSize = 0, dwCount = sizeof(DWORD);
+				if (::CryptGetHashParam(hHash, HP_HASHSIZE, (unsigned char*)&cbHashSize, &dwCount, 0)) {
+					std::vector<unsigned char> buffer(cbHashSize);
+					if (::CryptGetHashParam(hHash, HP_HASHVAL, reinterpret_cast<unsigned char*>(&buffer[0]), &cbHashSize, 0)) {
+						std::ostringstream oss;
+						for (std::vector<unsigned char>::const_iterator iter = buffer.begin(); iter != buffer.end();
+							++iter) {
+							oss.fill('0');
+							oss.width(2);
+							oss << std::hex << static_cast<const int>(*iter);
+						}
+						::CryptDestroyHash(hHash);
+						::CryptReleaseContext(hProv, 0);
+						if (hashUCase) {
+							hash = str2wstr(upper_copy(oss.str()));
+						} else {
+							hash = str2wstr(oss.str());
+						}
+						::CryptDestroyHash(hHash);
+						::CryptReleaseContext(hProv, 0);
+						return FSOpResult::Success;
+					}
+					::CryptDestroyHash(hHash);
+					::CryptReleaseContext(hProv, 0);
+				}
+				::CryptDestroyHash(hHash);
+				::CryptReleaseContext(hProv, 0);
+			}
+			::CryptDestroyHash(hHash);
+			::CryptReleaseContext(hProv, 0);
+		}
+		::CryptReleaseContext(hProv, 0);
+	}
+	return FSOpResult::Fail;
+}
+
+FSOpResult calcFileHash(std::wstring &hash, const std::wstring filePath, const HashType hashType,
+	const bool hashUCase) {
+	std::wstring ret;
+	::HCRYPTPROV hProv = 0;
+	if (::CryptAcquireContext(&hProv, 0, 0, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) {
+		::HCRYPTPROV hHash = 0;
+		if (::CryptCreateHash(hProv, (ALG_ID)hashType, 0, 0, &hHash)) {
+			unsigned long long fsize = 0;
+			if (FSOpResult::Success != getFileSize(fsize, filePath)) {
+				return FSOpResult::Fail;
+			}
+			unsigned char* fileContent = (unsigned char*)malloc(fsize + 1);
+			if (!fileContent) {
+				return FSOpResult::Fail;
+			}
+			memset(fileContent, 0, (fsize + 1) * sizeof(unsigned char));
+			if (FSOpResult::Success != file2Buffer(fileContent, filePath, fsize)) {
+				return FSOpResult::Fail;
+			}
+			if (::CryptHashData(hHash, static_cast<const unsigned char*>(fileContent), fsize, 0)) {
+				unsigned long cbHashSize = 0, dwCount = sizeof(DWORD);
+				if (::CryptGetHashParam(hHash, HP_HASHSIZE, (unsigned char*)&cbHashSize, &dwCount, 0)) {
+					std::vector<unsigned char> buffer(cbHashSize);
+					if (::CryptGetHashParam(hHash, HP_HASHVAL, reinterpret_cast<unsigned char*>(&buffer[0]), &cbHashSize, 0)) {
+						std::ostringstream oss;
+						for (std::vector<unsigned char>::const_iterator iter = buffer.begin(); iter != buffer.end();
+							++iter) {
+							oss.fill('0');
+							oss.width(2);
+							oss << std::hex << static_cast<const int>(*iter);
+						}
+						::CryptDestroyHash(hHash);
+						::CryptReleaseContext(hProv, 0);
+						SAFE_FREE(fileContent);
+						if (hashUCase) {
+							hash = str2wstr(upper_copy(oss.str()));
+						} else {
+							hash = str2wstr(oss.str());
+						}
+						::CryptDestroyHash(hHash);
+						::CryptReleaseContext(hProv, 0);
+						return FSOpResult::Success;
+					}
+					SAFE_FREE(fileContent);
+					::CryptDestroyHash(hHash);
+					::CryptReleaseContext(hProv, 0);
+				}
+				SAFE_FREE(fileContent);
+				::CryptDestroyHash(hHash);
+				::CryptReleaseContext(hProv, 0);
+			}
+			SAFE_FREE(fileContent);
+			::CryptDestroyHash(hHash);
+			::CryptReleaseContext(hProv, 0);
+		}
+		::CryptReleaseContext(hProv, 0);
+	}
+	return FSOpResult::Fail;
+}
+
 BinData::BinData() {
 	Platform = BinPlatform::PlatformUnknown;
 	BitDepth = BinBitDepth::BitDepthUnknown;
@@ -2060,14 +2164,6 @@ FSOpResult FSHandler::GetBinaryFileInfo(const std::wstring binaryPath, BinData &
 	return FSOpResult::Fail;
 }
 
-std::wstring FSHandler::GetFileControlSum(const std::wstring filePath, const HashType sumType) {
-	if (INVALID_FILE_ATTRIBUTES != GetFileAttributes(filePath.c_str())) {
-		return calcHash(filePath, sumType);
-	} else {
-		return L"";
-	}
-}
-
 FSOpResult FSHandler::CreateFolder(const std::wstring folderPath) const {
 	if (!pathExists(folderPath)) {
 		if (::CreateDirectory(folderPath.c_str(), 0)) {
@@ -3190,6 +3286,7 @@ FSOpResult FSHandler::EnumFolderContents(FolderRecord &folderInfo, const std::ws
 		if (INVALID_HANDLE_VALUE != hFind) {
 			folderInfo.folderName = splitStr(lower_copy(folderPath), L"\\").back();
 			folderInfo.folderPath = lower_copy(folderPath);
+			std::wstring hashBuf;
 			do {
 				removeFromEnd(seekpath, fs_pathsall);
 				if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
@@ -3212,7 +3309,9 @@ FSOpResult FSHandler::EnumFolderContents(FolderRecord &folderInfo, const std::ws
 					filerec.filePath = removeFromStart_copy(seekpath, fs_pathnolim) + L"\\" +
 						lower_copy(fd.cFileName);
 					if (getFileHashes) {
-						filerec.hash = GetFileControlSum(filerec.filePath, hashType);
+						if (FSOpResult::Success == calcFileHash(hashBuf, filerec.filePath, hashType)) {
+							filerec.hash = hashBuf;
+						}
 					}
 					if (getFilesize) {
 						if (FSOpResult::Success != getFileSize(filerec.size, filerec.filePath)) {
@@ -3230,10 +3329,9 @@ FSOpResult FSHandler::EnumFolderContents(FolderRecord &folderInfo, const std::ws
 	return FSOpResult::Success;
 }
 
-std::vector<FileRecord> FSHandler::SeekFile(const std::wstring filename,
-	const bool getSize, const bool getControlSum,
-	const bool excludeEmptyFiles, const HashType hash, const std::vector<std::wstring> exclusions,
-	const std::vector<VolumeDesc>* parts) {
+std::vector<FileRecord> FSHandler::SeekFile(const std::wstring filename, const bool getSize,
+	const bool getControlSum, const bool excludeEmptyFiles, const HashType hash,
+	const std::vector<std::wstring> exclusions, const std::vector<VolumeDesc>* parts) {
 	std::vector<FileRecord> ret;
 	std::vector<VolumeDesc> drives;
 	if (parts) {
@@ -3276,8 +3374,9 @@ std::vector<FileRecord> FSHandler::SeekFile(const std::wstring filename,
 		if (endsWith(seekpathraw, L"\\")) {
 			removeFromEnd(seekpathraw, L"\\");
 		}
-		hFind = FindFirstFile(seekpath.c_str(), &fd);
+		hFind = ::FindFirstFile(seekpath.c_str(), &fd);
 		if (INVALID_HANDLE_VALUE != hFind) {
+			std::wstring hashBuf;
 			do {
 				removeFromEnd(seekpath, fs_pathsall);
 				if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
@@ -3309,7 +3408,9 @@ std::vector<FileRecord> FSHandler::SeekFile(const std::wstring filename,
 								getFileSize(searchres.size, searchres.filePath);
 							}
 							if (getControlSum) {
-								searchres.hash = GetFileControlSum(searchres.filePath, hash);
+								if (FSOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
+									searchres.hash = hashBuf;
+								}
 							}
 							if (excludeEmptyFiles) {
 								filesize.LowPart = fd.nFileSizeLow;
@@ -3324,7 +3425,7 @@ std::vector<FileRecord> FSHandler::SeekFile(const std::wstring filename,
 					}
 				}
 			} while (FindNextFile(hFind, &fd));
-			FindClose(hFind);
+			::FindClose(hFind);
 		}
 	}
 	return ret;
@@ -3357,8 +3458,9 @@ std::vector<FileRecord> FSHandler::SeekFileInDir(const std::wstring startPath,
 	if (endsWith(seekpathraw, L"\\")) {
 		removeFromEnd(seekpathraw, L"\\");
 	}
-	hFind = FindFirstFile(seekpath.c_str(), &fd);
+	hFind = ::FindFirstFile(seekpath.c_str(), &fd);
 	if (INVALID_HANDLE_VALUE != hFind) {
+		std::wstring hashBuf;
 		do {
 			removeFromEnd(seekpath, fs_pathsall);
 			if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
@@ -3388,7 +3490,9 @@ std::vector<FileRecord> FSHandler::SeekFileInDir(const std::wstring startPath,
 							getFileSize(searchres.size, searchres.filePath);
 						}
 						if (getControlSum) {
-							searchres.hash = GetFileControlSum(searchres.filePath, hash);
+							if (FSOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
+								searchres.hash = hashBuf;
+							}
 						}
 						if (excludeEmptyFiles) {
 							filesize.LowPart = fd.nFileSizeLow;
@@ -3403,15 +3507,14 @@ std::vector<FileRecord> FSHandler::SeekFileInDir(const std::wstring startPath,
 				}
 			}
 		} while (FindNextFile(hFind, &fd));
-		FindClose(hFind);
+		::FindClose(hFind);
 	}
 	return ret;
 }
 
 std::vector<FileRecord> FSHandler::SeekFileRecursive(const std::wstring startPath, const std::wstring pathOrig,
-	const std::wstring filename, std::basic_regex<wchar_t> searchRegex,
-	const bool getSize, const bool getControlSum,
-	const bool excludeEmptyFiles, const HashType hash,
+	const std::wstring filename, std::basic_regex<wchar_t> searchRegex, const bool getSize,
+	const bool getControlSum, const bool excludeEmptyFiles, const HashType hash,
 	std::vector<std::wstring>* exclusions) {
 	std::vector<FileRecord> ret;
 	std::wstring path = pathOrig;
@@ -3431,8 +3534,9 @@ std::vector<FileRecord> FSHandler::SeekFileRecursive(const std::wstring startPat
 	if (endsWith(seekpathraw, L"\\")) {
 		removeFromEnd(seekpathraw, L"\\");
 	}
-	hFind = FindFirstFile(seekpath.c_str(), &fd);
+	hFind = ::FindFirstFile(seekpath.c_str(), &fd);
 	if (INVALID_HANDLE_VALUE != hFind) {
+		std::wstring hashBuf;
 		do {
 		removeFromEnd(seekpath, fs_pathsall);
 			if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
@@ -3461,7 +3565,9 @@ std::vector<FileRecord> FSHandler::SeekFileRecursive(const std::wstring startPat
 							getFileSize(searchres.size, searchres.filePath);
 						}
 						if (getControlSum) {
-							searchres.hash = GetFileControlSum(searchres.filePath, hash);
+							if (FSOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
+								searchres.hash = hashBuf;
+							}
 						}
 						if (excludeEmptyFiles) {
 							filesize.LowPart = fd.nFileSizeLow;
@@ -3476,7 +3582,7 @@ std::vector<FileRecord> FSHandler::SeekFileRecursive(const std::wstring startPat
 				}
 			}
 		} while (FindNextFile(hFind, &fd));
-		FindClose(hFind);
+		::FindClose(hFind);
 	}
 	return ret;
 }
@@ -3734,13 +3840,13 @@ FSOpResult FSHandler::GetDriveSpace_DriveGeometry(const std::wstring partLetter,
 		NULL);				// do not copy file attributes
 	if (INVALID_HANDLE_VALUE != hDevice) {
 		unsigned long junk = 0;
-		DISK_GEOMETRY pdg = { 0 };
+		::DISK_GEOMETRY pdg = { 0 };
 		bool result = ::DeviceIoControl(hDevice,	// device to be queried
 			IOCTL_DISK_GET_DRIVE_GEOMETRY,			// operation to perform
 			0, 0,									// no input buffer
-			&pdg, sizeof(DISK_GEOMETRY),			// output buffer
+			&pdg, sizeof(::DISK_GEOMETRY),			// output buffer
 			&junk,									// # bytes returned
-			(LPOVERLAPPED)0);
+			(::LPOVERLAPPED)0);
 		::CloseHandle(hDevice);
 		if (result) {
 			totalSpace = pdg.Cylinders.QuadPart * (unsigned long)pdg.TracksPerCylinder *
@@ -3753,11 +3859,10 @@ FSOpResult FSHandler::GetDriveSpace_DriveGeometry(const std::wstring partLetter,
 	return FSOpResult::Fail;
 }
 
-std::wstring FSHandler::calcHash(const std::wstring filePath,
-	const HashType hashType, const bool hashUCase) {
+std::wstring FSHandler::calcHash(const std::wstring filePath, const HashType hashType, const bool hashUCase) {
 	std::wstring ret;
 	::HCRYPTPROV hProv = 0;
-	if (CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) {
+	if (::CryptAcquireContext(&hProv, 0, 0, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) {
 		::HCRYPTPROV hHash = 0;
 		if (::CryptCreateHash(hProv, (ALG_ID)hashType, 0, 0, &hHash)) {
 			unsigned long long fsize = 0;
