@@ -49,8 +49,12 @@ bool checkCompressor(const std::wstring compressorName);
 /*
               PACK STRUCTURE
 _________________________________________
-|                                       |
+| HWADWER MIGHT NOT BE PRESENT IN PACK  |
+|_______________________________________|
 |           HEADER START SIGN           |
+|_______________________________________|
+|                                       |
+|           HEADER PWD HASH          |
 |_______________________________________|
 |                                       |
 |             HEADER SIZE               |
@@ -209,6 +213,7 @@ class PackageHeader {
 		~PackageHeader();
 		CompressOpResult SetPackagePwd(const std::wstring pwd);
 		CompressOpResult AddResourceSection(const std::wstring sectionPath);
+		CompressOpResult CreateHeader();
 		friend class PackageResource;
 		friend class PackageHandler;
 		friend class CompressHandler;
