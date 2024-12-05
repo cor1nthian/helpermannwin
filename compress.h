@@ -245,7 +245,7 @@ class PackageResource {
 		friend class CompressHandler;
 	protected:
 	private:
-		unsigned char m_compressor;
+		unsigned char m_compressor; // index
 		unsigned short m_nameLen;
 		unsigned long m_resourceID;
 		unsigned long m_containerOwnerID;

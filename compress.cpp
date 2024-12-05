@@ -283,8 +283,16 @@ CompressOpResult PackageResource::SetCompressor(const unsigned char compressor) 
 
 CompressOpResult PackageResource::SetCompressor(const std::wstring compressor) {
 	if (valInList(gc_allowedCompressors, compressor)) {
-		m_compressor = (unsigned char)(wstr2str(compressor).c_str());
-		return CompressOpResult::Success;
+		size_t compressIdx = 0;
+		std::vector<std::wstring> compressors;
+		compressors.insert(gc_allowedCompressors.begin() + 1, gc_allowedCompressors.end(),
+			gc_allowedCompressors.end());
+		if (!(valInList(compressors, compressor, true, false, &compressIdx))) {
+			return CompressOpResult::Fail;
+		} else {
+			m_compressor = compressIdx;
+			return CompressOpResult::Success;
+		}
 	} else {
 		return CompressOpResult::Fail;
 	}
