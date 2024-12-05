@@ -154,7 +154,8 @@
     <ClInclude Include="aclhelper.h" />
     <ClInclude Include="compress.h" />
     <ClInclude Include="config.h" />
-    <ClInclude Include="crypt.h" />
+    <ClInclude Include="cryptcommon.h" />
+    <ClInclude Include="crypthelper.h" />
     <ClInclude Include="dbhelper.h" />
     <ClInclude Include="fshelper.h" />
     <ClInclude Include="httphelper.h" />
@@ -172,7 +173,7 @@
   <ItemGroup>
     <ClCompile Include="aclhelper.cpp" />
     <ClCompile Include="compress.cpp" />
-    <ClCompile Include="crypt.cpp" />
+    <ClCompile Include="crypthelper.cpp" />
     <ClCompile Include="dbhelper.cpp" />
     <ClCompile Include="fshelper.cpp" />
     <ClCompile Include="httphelper.cpp" />

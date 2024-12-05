@@ -48,6 +48,8 @@
 #include "config.h"
 #include "strhelper.h"
 #include "aclhelper.h"
+#include "cryptcommon.h"
+// #include "crypthelper.h"
 #include "prochelper.h"
 #include "winerrhelper.h"
 #include "HWGetter.h"
@@ -113,13 +115,6 @@ enum class FileType : unsigned char {
 	WinAPI_Unbuffered,
 	C_Binary,
 	C_Text
-};
-
-// Hash/control sum types
-enum class HashType : unsigned long {
-	SHA1 = CALG_SHA1,
-	MD5 = CALG_MD5,
-	SHA256 = CALG_SHA_256
 };
 
 const unsigned long const FS_READBUFSZ = 1024;
@@ -496,7 +491,7 @@ class FSHandler {
 		std::vector<FileRecord> SeekFile(const std::wstring filename,
 			const bool getSize = true, const bool getControlSum = true,
 			const bool excludeEmptyFiles = false, const HashType hash = HashType::SHA256,
-			const std::vector<std::wstring> exclusions = std::vector<std::wstring>(),
+			const std::vector<std::wstring> exclusions = std::vector<std::wstring>{},
 			const std::vector<VolumeDesc>* parts = 0);
 		/* Does the file search starting in given folder baaed on a filename. Filename supports regex expressions.
 			Param:
@@ -547,7 +542,7 @@ class FSHandler {
 		friend FSOpResult buffer2File(const unsigned char* buffer, const std::wstring filePath,
 			const size_t bufferSize, const FileType fileType, const size_t writeBufSz,
 			const bool purgeObjectIfExists);
-		friend FSOpResult file2Buffer(unsigned char*& buffer, const std::wstring filePath, const size_t bufferSize,
+		friend FSOpResult file2Buffer(unsigned char* &buffer, const std::wstring filePath, const size_t bufferSize,
 			const FileType fileType, const size_t readBufSz);
 		friend FSOpResult removeObject(const std::wstring objectPath);
 		friend FSOpResult setFileSize(::HANDLE hFile, ::LARGE_INTEGER NewSize, const bool closeHandle);
@@ -570,7 +565,7 @@ class FSHandler {
 			const std::wstring filename, std::basic_regex<wchar_t> searchRegex, const bool getSize = true,
 			const bool getControlSum = true, const bool excludeEmptyFiles = false,
 			const HashType hash = HashType::SHA256, std::vector<std::wstring>* exclusions = 0);
-		FSOpResult GetFolderSizeOnDriveRec(unsigned long long& folderSize, const std::wstring folderPath,
+		FSOpResult GetFolderSizeOnDriveRec(unsigned long long &folderSize, const std::wstring folderPath,
 			::HMODULE ntDLLModule);
 		std::wstring calcHash(const std::wstring filePath,
 			const HashType hashType, const bool hashUCase = true);

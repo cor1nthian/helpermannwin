@@ -49,6 +49,8 @@
 #include "dbhelper.h"
 #include "wmihelper.h"
 #include "compress.h"
+#include "cryptcommon.h"
+#include "crypthelper.h"
 
 const wchar_t* muname = L"mymutex";
 
@@ -77,6 +79,9 @@ int wmain(int argc, wchar_t* argv[]) {
 	MSSQLDBHandler mssqlh;
 	CompressHandler cmph;
 	std::wstring resname;
+	std::wstring hh;
+	calcFileHash(hh, L"C:\\Users\\admin\\Desktop\\add2contextmenu.reg", HashType::SHA1);
+	std::wcout << hh << std::endl;
 	sys.GetResourceNameByID(resname, 101);
 	std::vector<std::wstring> tws1, tws2, tws3, tws4;
 	std::vector<DriveDesc> ddesc2;
@@ -109,8 +114,9 @@ int wmain(int argc, wchar_t* argv[]) {
 	unsigned long long folderSize = 0;
 	getFolderSize(folderSize, L"C:\\Users\\admin\\Downloads\\v2rayN-Core");
 	std::wstring fhash;
-	calcFileHash(fhash, L"C:\\Users\\admin\\Desktop\\wminamespaceenum.ps1", HashType::SHA256);
-	std::wcout << fhash << std::endl;
+	// calcFileHash(fhash, L"C:\\Users\\admin\\Desktop\\wminamespaceenum.ps1", HashType::SHA256);
+	/*calcFileHash(fhash, L"C:\\Users\\admin\\Desktop\\wminamespaceenum.ps1", HashType::SHA256);
+	std::wcout << fhash << std::endl;*/
 	// FSOpResult res = file2Bufffer(fbufw, L"C:\\cleantemp.bat");
 	// std::cout << fsh.pathExists(L"C:\\Users\\admin\\Desktop\\SQLQuery1.sql") << std::endl;
 	unsigned char* cmpBuf = 0;

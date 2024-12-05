@@ -5,7 +5,6 @@
 #include <blosc.h>
 #include "syshelper.h"
 #include "fshelper.h"
-#include "crypt.h"
 
 const wchar_t* const gc_noCompression = L"nocompression";
 const wchar_t* const gc_headerStart = L"BHDR\1";
@@ -20,6 +19,13 @@ const std::vector<std::wstring> const gc_allowedCompressors{ gc_noCompression, L
 enum class CompressOpResult : unsigned char {
 	Success,
 	Fail
+};
+
+enum class CompressPwdHashType : unsigned char {
+	NoPwd,
+	MD5Hash,
+	SHA1Hash,
+	SHA256Hash
 };
 
 enum class ShuffleOp : unsigned char {
@@ -39,7 +45,8 @@ hminline size_t getDecompressedBufferSz(const unsigned char* compressedBuf, cons
 	size_t bufSz = 0;
 	if (COMPRESS_BLOSC_INVALIDVAL == blosc_cbuffer_validate(compressedBuf, bufferSize, &bufSz)) {
 		return 0;
-	} else {
+	}
+	else {
 		return bufSz;
 	}
 }
@@ -49,12 +56,15 @@ bool checkCompressor(const std::wstring compressorName);
 /*
               PACK STRUCTURE
 _________________________________________
-| HWADWER MIGHT NOT BE PRESENT IN PACK  |
+|  HEADER MIGHT NOT BE PRESENT IN PACK  |
 |_______________________________________|
 |           HEADER START SIGN           |
 |_______________________________________|
 |                                       |
-|           HEADER PWD HASH          |
+|         HEADER PWD HASH TYPE          |
+|_______________________________________|
+|                                       |
+|           HEADER PWD HASH             |
 |_______________________________________|
 |                                       |
 |             HEADER SIZE               |
@@ -67,6 +77,18 @@ _________________________________________
 |_______________________________________|
 |                                       |
 |            PACK RECORDS NUM           |
+|_______________________________________|
+|                                       |
+|      INTERNAL FOLDERS RECORDS NUM     |
+|_______________________________________|
+|                                       |
+|         INTERNAL FOLDER 1 PATH        |
+|_______________________________________|
+|                                       |
+|                  ...                  |
+|_______________________________________|
+|                                       |
+|         INTERNAL FOLDER N PATH        |
 |_______________________________________|
 |                                       |
 |            RESOURCE 1 ID              |

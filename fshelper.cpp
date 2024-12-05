@@ -2,7 +2,7 @@
 #include <iostream>
 #include "fshelper.h"
 #include "ntapi.h"
-#include "crypt.h"
+#include "crypthelper.h"
 
 inline bool pathExists(const std::wstring path) {
 	return (path.length() && (INVALID_FILE_ATTRIBUTES != ::GetFileAttributes(path.c_str())));
@@ -3209,7 +3209,7 @@ FSOpResult FSHandler::EnumFolderContents(FolderRecord &folderInfo, const std::ws
 					filerec.filePath = removeFromStart_copy(seekpath, fs_pathnolim) + L"\\" +
 						lower_copy(fd.cFileName);
 					if (getFileHashes) {
-						if (FSOpResult::Success == calcFileHash(hashBuf, filerec.filePath, hashType)) {
+						if (CryptOpResult::Success == calcFileHash(hashBuf, filerec.filePath, hashType)) {
 							filerec.hash = hashBuf;
 						}
 					}
@@ -3308,7 +3308,7 @@ std::vector<FileRecord> FSHandler::SeekFile(const std::wstring filename, const b
 								getFileSize(searchres.size, searchres.filePath);
 							}
 							if (getControlSum) {
-								if (FSOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
+								if (CryptOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
 									searchres.hash = hashBuf;
 								}
 							}
@@ -3390,7 +3390,7 @@ std::vector<FileRecord> FSHandler::SeekFileInDir(const std::wstring startPath,
 							getFileSize(searchres.size, searchres.filePath);
 						}
 						if (getControlSum) {
-							if (FSOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
+							if (CryptOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
 								searchres.hash = hashBuf;
 							}
 						}
@@ -3465,7 +3465,7 @@ std::vector<FileRecord> FSHandler::SeekFileRecursive(const std::wstring startPat
 							getFileSize(searchres.size, searchres.filePath);
 						}
 						if (getControlSum) {
-							if (FSOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
+							if (CryptOpResult::Success == calcFileHash(hashBuf, searchres.filePath, hash)) {
 								searchres.hash = hashBuf;
 							}
 						}

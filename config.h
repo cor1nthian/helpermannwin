@@ -250,4 +250,8 @@ typedef long NTSTATUS;
 #define COMPRESS_BLOSC_MAXBLOCKSZ       4096
 #define COMPRESS_MAX_RESOURCESZ         209715200 // 200 mb
 
+// Crupthelper defines
+#define CH_MAXLENMD5                    32
+#define CH_MAXLENSHA1                   40
+#define CH_MAXLENSHA256                 64
 #endif // _CONFIG_H
