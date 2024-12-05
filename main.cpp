@@ -49,7 +49,6 @@
 #include "dbhelper.h"
 #include "wmihelper.h"
 #include "compress.h"
-#include "cryptcommon.h"
 #include "crypthelper.h"
 
 const wchar_t* muname = L"mymutex";

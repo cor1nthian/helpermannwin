@@ -12,11 +12,78 @@ bool checkCompressor(const std::wstring compressorName) {
 	}
 }
 
+PackageContainer::PackageContainer() {
+	m_containerID = 0;
+}
+
+PackageContainer::PackageContainer(const unsigned long containerID) {
+	m_containerID = containerID;
+}
+
+PackageContainer::PackageContainer(const unsigned long containerID, const std::vector<unsigned long> resourceIDs) {
+	m_containerID = containerID;
+	m_resourceIDs = resourceIDs;
+}
+
+PackageContainer::PackageContainer(const PackageContainer &other) {
+	if (this != &other) {
+		m_containerID = other.m_containerID;
+		m_resourceIDs = other.m_resourceIDs;
+	}
+}
+
+#if (defined(STDVER) && STDVER >= 11 && STDVER != 98)
+PackageContainer::PackageContainer(PackageContainer&& other) noexcept {
+	if (this != &other) {
+		m_containerID = std::exchange(other.m_containerID, 0);
+		m_resourceIDs = std::move(other.m_resourceIDs);
+	}
+}
+#endif
+
+PackageContainer& PackageContainer::operator=(const PackageContainer &other) {
+	if (this != &other) {
+		m_containerID = other.m_containerID;
+		m_resourceIDs = other.m_resourceIDs;
+	}
+	return *this;
+}
+
+#if (defined(STDVER) && STDVER >= 11 && STDVER != 98)
+PackageContainer& PackageContainer::operator=(PackageContainer &&other) noexcept {
+	if (this != &other) {
+		m_containerID = std::exchange(other.m_containerID, 0);
+		m_resourceIDs = std::move(other.m_resourceIDs);
+	}
+	return *this;
+}
+
+#endif
+bool PackageContainer::operator==(const PackageContainer &other) {
+	if (this != &other) {
+		return (m_containerID == other.m_containerID &&
+				m_resourceIDs == other.m_resourceIDs);
+	} else {
+		return true;
+	}
+}
+bool PackageContainer::operator!=(const PackageContainer &other) {
+	if (this != &other) {
+		return (m_containerID != other.m_containerID ||
+				m_resourceIDs != other.m_resourceIDs);
+	} else {
+		return false;
+	}
+}
+
+PackageContainer::~PackageContainer() {}
+
 PackageResource::PackageResource() {
 	m_compressor = 0;
 	m_nameLen = 0;
 	m_resourceID = 0;
-	m_ownerID = 0;
+	m_headerOwnerID = 0;
+	m_containerOwnerID = 0;
 	m_startOffset = 0;
 	m_sizeOriginal = 0;
 	m_sizeCompressed = 0;
@@ -26,12 +93,14 @@ PackageResource::PackageResource() {
 }
 
 PackageResource::PackageResource(const unsigned char compressor, const unsigned short nameLen,
-	const unsigned long resourceID, const unsigned long ownerID, const unsigned long long startOffset,
-	const size_t sizeOriginal, const size_t sizeCompressed, const std::wstring resourcePath) {
+	const unsigned long resourceID, const unsigned long headerOwnerID, const unsigned long containerOwnerID,
+	const unsigned long long startOffset, const size_t sizeOriginal, const size_t sizeCompressed,
+	const std::wstring resourcePath) {
 	m_compressor = compressor;
 	m_nameLen = nameLen;
 	m_resourceID = resourceID;
-	m_ownerID = ownerID;
+	m_headerOwnerID = headerOwnerID;
+	m_containerOwnerID = containerOwnerID;
 	m_startOffset = startOffset;
 	m_sizeOriginal = sizeOriginal;
 	m_sizeCompressed = sizeCompressed;
@@ -40,13 +109,14 @@ PackageResource::PackageResource(const unsigned char compressor, const unsigned 
 }
 
 PackageResource::PackageResource(const unsigned char compressor, const unsigned short nameLen,
-	const unsigned long resourceID, const unsigned long ownerID, const unsigned long long startOffset,
-	const size_t sizeOriginal, const size_t sizeCompressed, const unsigned char* resourceBuffer,
-	const std::wstring resourcePath) {
+	const unsigned long resourceID, const unsigned long headerOwnerID, const unsigned long containerOwnerID,
+	const unsigned long long startOffset, const size_t sizeOriginal, const size_t sizeCompressed,
+	const unsigned char* resourceBuffer, const std::wstring resourcePath) {
 	m_compressor = compressor;
 	m_nameLen = nameLen;
 	m_resourceID = resourceID;
-	m_ownerID = ownerID;
+	m_headerOwnerID = headerOwnerID;
+	m_containerOwnerID = containerOwnerID;
 	m_startOffset = startOffset;
 	m_sizeOriginal = sizeOriginal;
 	m_sizeCompressed = sizeCompressed;
@@ -59,7 +129,8 @@ PackageResource::PackageResource(const PackageResource& other) {
 		m_compressor = other.m_compressor;
 		m_nameLen = other.m_nameLen;
 		m_resourceID = other.m_resourceID;
-		m_ownerID = other.m_ownerID;
+		m_headerOwnerID = other.m_headerOwnerID;
+		m_containerOwnerID = other.m_containerOwnerID;
 		m_startOffset = other.m_startOffset;
 		m_sizeOriginal = other.m_sizeOriginal;
 		m_sizeCompressed = other.m_sizeCompressed;
@@ -74,7 +145,8 @@ PackageResource::PackageResource(PackageResource &&other) {
 		m_compressor = std::exchange(other.m_compressor, 0);
 		m_nameLen = std::exchange(other.m_nameLen, 0);
 		m_resourceID = std::exchange(other.m_resourceID, 0);
-		m_ownerID = std::exchange(other.m_ownerID, 0);
+		m_headerOwnerID = std::exchange(other.m_headerOwnerID, 0);
+		m_containerOwnerID = std::exchange(other.m_containerOwnerID, 0);
 		m_startOffset = std::exchange(other.m_startOffset, 0);
 		m_sizeOriginal = std::exchange(other.m_sizeOriginal, 0);
 		m_sizeCompressed = std::exchange(other.m_sizeCompressed, 0);
@@ -89,7 +161,8 @@ PackageResource& PackageResource::operator=(const PackageResource &other) {
 		m_compressor = other.m_compressor;
 		m_nameLen = other.m_nameLen;
 		m_resourceID = other.m_resourceID;
-		m_ownerID = other.m_ownerID;
+		m_headerOwnerID = other.m_headerOwnerID;
+		m_containerOwnerID = other.m_containerOwnerID;
 		m_startOffset = other.m_startOffset;
 		m_sizeOriginal = other.m_sizeOriginal;
 		m_sizeCompressed = other.m_sizeCompressed;
@@ -105,7 +178,8 @@ PackageResource& PackageResource::operator=(PackageResource &&other) noexcept {
 		m_compressor = std::exchange(other.m_compressor, 0);
 		m_nameLen = std::exchange(other.m_nameLen, 0);
 		m_resourceID = std::exchange(other.m_resourceID, 0);
-		m_ownerID = std::exchange(other.m_ownerID, 0);
+		m_headerOwnerID = std::exchange(other.m_headerOwnerID, 0);
+		m_containerOwnerID = std::exchange(other.m_containerOwnerID, 0);
 		m_startOffset = std::exchange(other.m_startOffset, 0);
 		m_sizeOriginal = std::exchange(other.m_sizeOriginal, 0);
 		m_sizeCompressed = std::exchange(other.m_sizeCompressed, 0);
@@ -121,7 +195,8 @@ bool PackageResource::operator==(const PackageResource &other) {
 		return (m_compressor == other.m_compressor &&
 				m_nameLen == other.m_nameLen &&
 				m_resourceID == other.m_resourceID &&
-				m_ownerID == other.m_ownerID &&
+				m_headerOwnerID == other.m_headerOwnerID &&
+				m_containerOwnerID == other.m_containerOwnerID &&
 				m_startOffset == other.m_startOffset &&
 				m_sizeOriginal == other.m_sizeOriginal &&
 				m_sizeCompressed == other.m_sizeCompressed &&
@@ -137,7 +212,8 @@ bool PackageResource::operator!=(const PackageResource &other) {
 		return (m_compressor != other.m_compressor ||
 				m_nameLen != other.m_nameLen ||
 				m_resourceID != other.m_resourceID ||
-				m_ownerID != other.m_ownerID ||
+				m_headerOwnerID != other.m_headerOwnerID ||
+				m_containerOwnerID != other.m_containerOwnerID ||
 				m_startOffset != other.m_startOffset ||
 				m_sizeOriginal != other.m_sizeOriginal ||
 				m_sizeCompressed != other.m_sizeCompressed ||
@@ -168,8 +244,12 @@ unsigned long PackageResource::GetResourceID() const {
 	return m_resourceID;
 }
 
-unsigned long PackageResource::GetOwnerID() const {
-	return m_ownerID;
+unsigned long PackageResource::GetHeaderOwnerID() const {
+	return m_headerOwnerID;
+}
+
+unsigned long PackageResource::GetContainerOwnerID() const {
+	return m_containerOwnerID;
 }
 
 unsigned long long PackageResource::GetStartOffset() const {
@@ -210,9 +290,13 @@ CompressOpResult PackageResource::SetCompressor(const std::wstring compressor) {
 	}
 }
 
+CompressOpResult PackageResource::SetHeaderOwnerID(const unsigned long headerOwnerID) {
+	m_headerOwnerID = headerOwnerID;
+	return CompressOpResult::Success;
+}
 
-CompressOpResult PackageResource::SetOwnerID(const unsigned long ownerID) {
-	m_ownerID = ownerID;
+CompressOpResult PackageResource::SetContainerOwnerID(const unsigned long containerOwnerID) {
+	m_containerOwnerID = containerOwnerID;
 	return CompressOpResult::Success;
 }
 
