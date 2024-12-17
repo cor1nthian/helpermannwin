@@ -40,7 +40,7 @@ bool IsBadWritePtr(void* p) {
 	return true;
 }
 
-int rnd(const int from, const int to) {
+long long rnd(const long long from, const long long to) {
 	std::mt19937 rng;
 	rng.seed(std::random_device()());
 	//rng.seed(std::chrono::high_resolution_clock::now().time_since_epoch().count());

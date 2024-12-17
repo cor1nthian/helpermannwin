@@ -1,11 +1,23 @@
 #include "compress.h"
 
+unsigned char getCompressorIndex(const std::wstring compressorName) {
+	size_t ret = 0;
+	std::vector<std::wstring> compressors;
+	compressors.insert(gc_allowedCompressors.begin() + 1, gc_allowedCompressors.end(),
+		gc_allowedCompressors.end());
+	if (valInList(compressors, compressorName, true,  false, &ret)) {
+		return (unsigned char)ret;
+	} else {
+		return 0;
+	}
+}
+
 // snappy compressor is skipped
 bool checkCompressor(const std::wstring compressorName) {
 	std::vector<std::wstring> compressors;
 	compressors.insert(gc_allowedCompressors.begin() + 1, gc_allowedCompressors.end(),
 		gc_allowedCompressors.end());
-	if (valInList(compressors, compressorName, false)) {
+	if (valInList(compressors, compressorName, true, false)) {
 		return true;
 	} else {
 		return false;
@@ -16,19 +28,27 @@ PackageContainer::PackageContainer() {
 	m_containerID = 0;
 }
 
-PackageContainer::PackageContainer(const unsigned long containerID) {
+PackageContainer::PackageContainer(const unsigned long containerID, const std::wstring containerStrID,
+	const std::wstring containerPath) {
 	m_containerID = containerID;
+	m_containerStrID = containerStrID;
+	m_containerPath = containerPath;
 }
 
-PackageContainer::PackageContainer(const unsigned long containerID, const std::vector<unsigned long> resourceIDs) {
+PackageContainer::PackageContainer(const unsigned long containerID, const std::wstring containerStrID,
+	const std::wstring containerPath, const std::vector<unsigned long> resourceIDs) {
 	m_containerID = containerID;
-	m_resourceIDs = resourceIDs;
+	m_containerStrID = containerStrID; 
+	m_containerPath = containerPath;
+	m_containerIDs = resourceIDs;
 }
 
 PackageContainer::PackageContainer(const PackageContainer &other) {
 	if (this != &other) {
 		m_containerID = other.m_containerID;
-		m_resourceIDs = other.m_resourceIDs;
+		m_containerStrID = other.m_containerStrID;
+		m_containerPath = other.m_containerPath;
+		m_containerIDs = other.m_containerIDs;
 	}
 }
 
@@ -36,7 +56,9 @@ PackageContainer::PackageContainer(const PackageContainer &other) {
 PackageContainer::PackageContainer(PackageContainer&& other) noexcept {
 	if (this != &other) {
 		m_containerID = std::exchange(other.m_containerID, 0);
-		m_resourceIDs = std::move(other.m_resourceIDs);
+		m_containerStrID = std::move(other.m_containerStrID);
+		m_containerPath = std::move(other.m_containerPath);
+		m_containerIDs = std::move(other.m_containerIDs);
 	}
 }
 #endif
@@ -44,7 +66,9 @@ PackageContainer::PackageContainer(PackageContainer&& other) noexcept {
 PackageContainer& PackageContainer::operator=(const PackageContainer &other) {
 	if (this != &other) {
 		m_containerID = other.m_containerID;
-		m_resourceIDs = other.m_resourceIDs;
+		m_containerStrID = other.m_containerStrID;
+		m_containerPath = other.m_containerPath;
+		m_containerIDs = other.m_containerIDs;
 	}
 	return *this;
 }
@@ -53,16 +77,21 @@ PackageContainer& PackageContainer::operator=(const PackageContainer &other) {
 PackageContainer& PackageContainer::operator=(PackageContainer &&other) noexcept {
 	if (this != &other) {
 		m_containerID = std::exchange(other.m_containerID, 0);
-		m_resourceIDs = std::move(other.m_resourceIDs);
+		m_containerStrID = std::move(other.m_containerStrID);
+		m_containerPath = std::move(other.m_containerPath);
+		m_containerIDs = std::move(other.m_containerIDs);
 	}
 	return *this;
 }
 
 #endif
+
 bool PackageContainer::operator==(const PackageContainer &other) {
 	if (this != &other) {
 		return (m_containerID == other.m_containerID &&
-				m_resourceIDs == other.m_resourceIDs);
+				lower_copy(m_containerStrID) == lower_copy(other.m_containerStrID) &&
+				lower_copy(m_containerPath) == lower_copy(other.m_containerPath) &&
+				m_containerIDs == other.m_containerIDs);
 	} else {
 		return true;
 	}
@@ -70,13 +99,51 @@ bool PackageContainer::operator==(const PackageContainer &other) {
 bool PackageContainer::operator!=(const PackageContainer &other) {
 	if (this != &other) {
 		return (m_containerID != other.m_containerID ||
-				m_resourceIDs != other.m_resourceIDs);
+				lower_copy(m_containerStrID) != lower_copy(other.m_containerStrID) ||
+				lower_copy(m_containerPath) != lower_copy(other.m_containerPath) ||
+				m_containerIDs != other.m_containerIDs);
 	} else {
 		return false;
 	}
 }
 
 PackageContainer::~PackageContainer() {}
+
+unsigned long PackageContainer::GetContainerID() const {
+	return m_containerID;
+}
+
+std::wstring PackageContainer::GetContainerStrID() const {
+	return m_containerStrID;
+}
+
+std::wstring PackageContainer::GetContainerPath() const {
+	return m_containerPath;
+}
+
+CompressOpResult PackageContainer::SetContainerID(unsigned long containerID) {
+	if (COMPRESS_MINCONTAINERID <= containerID && COMPRESS_MAXCONTAINERID >= containerID) {
+		m_containerID = containerID;
+		return CompressOpResult::Success;
+	} else {
+		return CompressOpResult::Fail;
+	}
+}
+
+CompressOpResult PackageContainer::SetContainerStrID(const std::wstring containerStrID) {
+	m_containerStrID = containerStrID;
+	return CompressOpResult::Success;
+}
+
+CompressOpResult PackageContainer::SetContainerPath(const std::wstring containerPath) {
+	m_containerPath = containerPath;
+	m_containerPath = containerPath;
+	return CompressOpResult::Success;
+}
+
+CompressOpResult PackageContainer::generateContainerStrID(std::wstring& containerStrID) {
+	return CompressOpResult::Success;
+}
 
 PackageResource::PackageResource() {
 	m_compressor = 0;
@@ -89,12 +156,30 @@ PackageResource::PackageResource() {
 	m_sizeCompressed = 0;
 	m_resourceBuffer = 0;
 	PackageHeader* m_owner = 0;
-
 }
 
 PackageResource::PackageResource(const unsigned char compressor, const unsigned short nameLen,
-	const unsigned long resourceID, const unsigned long headerOwnerID, const unsigned long containerOwnerID,
-	const unsigned long long startOffset, const size_t sizeOriginal, const size_t sizeCompressed,
+	const unsigned long resourceID, const std::wstring resourceStrID, const std::wstring resourceName,
+	const unsigned long headerOwnerID, const unsigned long containerOwnerID, const unsigned long long startOffset,
+	const size_t sizeOriginal, const size_t sizeCompressed, const std::wstring resourcePath) {
+	m_compressor = compressor;
+	m_nameLen = nameLen;
+	m_resourceID = resourceID;
+	m_headerOwnerID = headerOwnerID;
+	m_containerOwnerID = containerOwnerID;
+	m_startOffset = startOffset;
+	m_sizeOriginal = sizeOriginal;
+	m_sizeCompressed = sizeCompressed;
+	m_resourceStrID = resourceStrID;
+	m_resourceName = resourceName;
+	m_resourcePath = resourcePath;
+	m_resourceBuffer = 0;
+}
+
+PackageResource::PackageResource(const unsigned char compressor, const unsigned short nameLen,
+	const unsigned long resourceID, const std::wstring resourceStrID, const std::wstring resourceName,
+	const unsigned long headerOwnerID, const unsigned long containerOwnerID, const unsigned long long startOffset,
+	const size_t sizeOriginal,  const size_t sizeCompressed, const unsigned char* resourceBuffer,
 	const std::wstring resourcePath) {
 	m_compressor = compressor;
 	m_nameLen = nameLen;
@@ -104,23 +189,9 @@ PackageResource::PackageResource(const unsigned char compressor, const unsigned 
 	m_startOffset = startOffset;
 	m_sizeOriginal = sizeOriginal;
 	m_sizeCompressed = sizeCompressed;
-	m_resourcePath = resourcePath;
-	m_resourceBuffer = 0;
-}
-
-PackageResource::PackageResource(const unsigned char compressor, const unsigned short nameLen,
-	const unsigned long resourceID, const unsigned long headerOwnerID, const unsigned long containerOwnerID,
-	const unsigned long long startOffset, const size_t sizeOriginal, const size_t sizeCompressed,
-	const unsigned char* resourceBuffer, const std::wstring resourcePath) {
-	m_compressor = compressor;
-	m_nameLen = nameLen;
-	m_resourceID = resourceID;
-	m_headerOwnerID = headerOwnerID;
-	m_containerOwnerID = containerOwnerID;
-	m_startOffset = startOffset;
-	m_sizeOriginal = sizeOriginal;
-	m_sizeCompressed = sizeCompressed;
 	m_resourceBuffer = const_cast<unsigned char*>(resourceBuffer);
+	m_resourceStrID = resourceStrID;
+	m_resourceName = resourceName;
 	m_resourcePath = resourcePath;
 }
 
@@ -135,6 +206,8 @@ PackageResource::PackageResource(const PackageResource& other) {
 		m_sizeOriginal = other.m_sizeOriginal;
 		m_sizeCompressed = other.m_sizeCompressed;
 		m_resourceBuffer = other.m_resourceBuffer;
+		m_resourceStrID = other.m_resourceStrID;
+		m_resourceName = other.m_resourceName;
 		m_resourcePath = other.m_resourcePath;
 	}
 }
@@ -151,6 +224,8 @@ PackageResource::PackageResource(PackageResource &&other) {
 		m_sizeOriginal = std::exchange(other.m_sizeOriginal, 0);
 		m_sizeCompressed = std::exchange(other.m_sizeCompressed, 0);
 		m_resourceBuffer = std::move(other.m_resourceBuffer);
+		m_resourceStrID = std::move(other.m_resourceStrID);
+		m_resourceName = std::move(other.m_resourceName);
 		m_resourcePath = std::move(other.m_resourcePath);
 	}
 }
@@ -167,6 +242,7 @@ PackageResource& PackageResource::operator=(const PackageResource &other) {
 		m_sizeOriginal = other.m_sizeOriginal;
 		m_sizeCompressed = other.m_sizeCompressed;
 		m_resourceBuffer = other.m_resourceBuffer;
+		m_resourceStrID = other.m_resourceStrID;
 		m_resourcePath = other.m_resourcePath;
 	}
 	return *this;
@@ -184,6 +260,8 @@ PackageResource& PackageResource::operator=(PackageResource &&other) noexcept {
 		m_sizeOriginal = std::exchange(other.m_sizeOriginal, 0);
 		m_sizeCompressed = std::exchange(other.m_sizeCompressed, 0);
 		m_resourceBuffer = std::move(other.m_resourceBuffer);
+		m_resourceStrID = std::move(other.m_resourceStrID);
+		m_resourceName = std::move(other.m_resourceName);
 		m_resourcePath = std::move(other.m_resourcePath);
 	}
 	return *this;
@@ -201,7 +279,9 @@ bool PackageResource::operator==(const PackageResource &other) {
 				m_sizeOriginal == other.m_sizeOriginal &&
 				m_sizeCompressed == other.m_sizeCompressed &&
 				m_resourceBuffer == other.m_resourceBuffer &&
-				m_resourcePath == other.m_resourcePath);
+				lower_copy(m_resourceStrID) == lower_copy(other.m_resourceStrID) &&
+				lower_copy(m_resourceName) == lower_copy(other.m_resourceName) &&
+				lower_copy(m_resourcePath) == lower_copy(other.m_resourcePath));
 	} else {
 		return true;
 	}
@@ -218,7 +298,9 @@ bool PackageResource::operator!=(const PackageResource &other) {
 				m_sizeOriginal != other.m_sizeOriginal ||
 				m_sizeCompressed != other.m_sizeCompressed ||
 				m_resourceBuffer != other.m_resourceBuffer ||
-				m_resourcePath != other.m_resourcePath);
+				lower_copy(m_resourceStrID) != lower_copy(other.m_resourceStrID) ||
+				lower_copy(m_resourceName) != lower_copy(other.m_resourceName) ||
+				lower_copy(m_resourcePath) != lower_copy(other.m_resourcePath));
 	} else {
 		return false;
 	}
@@ -233,7 +315,7 @@ PackageResource::~PackageResource() {
 unsigned char* PackageResource::GetCompressorName() const {
 	std::string compressorName = wstr2str(gc_allowedCompressors[m_compressor]);
 	char* compressorNameUnconst = const_cast<char*>(compressorName.c_str());
-	return (unsigned char*)compressorNameUnconst;
+	return reinterpret_cast<unsigned char*>(compressorNameUnconst);
 }
 
 unsigned char PackageResource::GetCompressorIndex() const {
@@ -266,6 +348,14 @@ size_t PackageResource::GetSizeCompressed() const {
 
 unsigned char* PackageResource::GetResourceBuffer() const {
 	return m_resourceBuffer;
+}
+
+std::wstring PackageResource::GetResourceStrID() const {
+	return m_resourceStrID;
+}
+
+std::wstring PackageResource::GetResourceMame() const {
+	return m_resourceName;
 }
 
 std::wstring PackageResource::GetResourcePath() const {
@@ -326,8 +416,7 @@ CompressOpResult PackageResource::SetCompressedSize(const size_t sizeCompressedl
 	if (sizeCompressedl <= COMPRESS_MAX_RESOURCESZ) {
 		m_sizeCompressed = sizeCompressedl;
 		return CompressOpResult::Success;
-	}
-	else {
+	} else {
 		return CompressOpResult::Fail;
 	}
 }
@@ -354,13 +443,22 @@ CompressOpResult PackageResource::SetResourceBuffer(const unsigned char* resourc
 	} else {
 		return CompressOpResult::Fail;
 	}
-	
+}
+
+CompressOpResult PackageResource::SetResourceStrID(const std::wstring resourceStrID) {
+	m_resourceStrID = resourceStrID;
+	return CompressOpResult::Success;
+}
+
+CompressOpResult PackageResource::SetResourceNmae(const std::wstring resourceName) {
+	m_resourceName = resourceName;
+	return CompressOpResult::Success;
 }
 
 CompressOpResult PackageResource::SetResourcePath(const std::wstring resourcePath) {
 	if (pathExists(resourcePath)) {
 		bool isFld = false;
-		if (FSOpResult::Success != isFolder(isFld, resourcePath)) {
+		if (FSOpResult::Success == isFolder(isFld, resourcePath)) {
 			if (isFld) {
 				return CompressOpResult::Fail;
 			}
@@ -413,34 +511,29 @@ CompressOpResult PackageResource::SetResourceData(const unsigned char compressor
 	}
 }
 
+CompressOpResult PackageResource::generateResourceStrID(std::wstring &resourceStrID) {
+	return CompressOpResult::Success;
+}
+
 PackageHeader::PackageHeader() {
 	m_headerID = 0;
-	m_recsSection = 0;
-	m_recsResource = 0;
 	m_headerSize = 0;
 }
 
-PackageHeader::PackageHeader(const unsigned long headerID, const unsigned long recsSection,
-	const unsigned long recsResource, const unsigned long headerSize, const std::wstring packagePwd,
-	const std::vector<std::wstring> resourceMap, const std::vector<unsigned long> resources) {
+PackageHeader::PackageHeader(const unsigned long headerID, const unsigned long headerSize,
+	const std::wstring packagePwd, const std::vector<std::wstring> resourceMap,
+	const std::vector<unsigned long> resources) {
 	m_headerID = headerID;
-	m_recsSection = recsSection;
-	m_recsResource = recsResource;
 	m_headerSize = headerSize;
-	m_packagePwd = packagePwd;
-	m_resourceMap = resourceMap;
-	m_resourceIDs = resources;
+	m_headerPwd = packagePwd;
 }
 
 PackageHeader::PackageHeader(const PackageHeader &other) {
 	if (this != &other) {
 		m_headerID = other.m_headerID;
-		m_recsSection = other.m_recsSection;
-		m_recsResource = other.m_recsResource;
 		m_headerSize = other.m_headerSize;
-		m_packagePwd = other.m_packagePwd;
-		m_resourceIDs = other.m_resourceIDs;
-		m_resourceMap = other.m_resourceMap;
+		m_headerPwd = other.m_headerPwd;
+		m_containerIDs = other.m_containerIDs;
 	}
 }
 
@@ -448,12 +541,9 @@ PackageHeader::PackageHeader(const PackageHeader &other) {
 PackageHeader::PackageHeader(PackageHeader &&other) {
 	if (this != &other) {
 		m_headerID = std::exchange(other.m_headerID, 0);
-		m_recsSection = std::exchange(other.m_recsSection, 0);
-		m_recsResource = std::exchange(other.m_recsResource, 0);
 		m_headerSize = std::exchange(other.m_headerSize, 0);
-		m_packagePwd = std::move(other.m_packagePwd);
-		m_resourceIDs = std::move(other.m_resourceIDs);
-		m_resourceMap = std::move(other.m_resourceMap);
+		m_headerPwd = std::move(other.m_headerPwd);
+		m_containerIDs = std::move(other.m_containerIDs);
 	}
 }
 #endif
@@ -461,12 +551,9 @@ PackageHeader::PackageHeader(PackageHeader &&other) {
 PackageHeader& PackageHeader::operator=(const PackageHeader &other) {
 	if (this != &other) {
 		m_headerID = other.m_headerID;
-		m_recsSection = other.m_recsSection;
-		m_recsResource = other.m_recsResource;
 		m_headerSize = other.m_headerSize;
-		m_packagePwd = other.m_packagePwd;
-		m_resourceIDs = other.m_resourceIDs;
-		m_resourceMap = other.m_resourceMap;
+		m_headerPwd = other.m_headerPwd;
+		m_containerIDs = other.m_containerIDs;
 	}
 	return *this;
 }
@@ -475,12 +562,9 @@ PackageHeader& PackageHeader::operator=(const PackageHeader &other) {
 PackageHeader& PackageHeader::operator=(PackageHeader &&other) noexcept {
 	if (this != &other) {
 		m_headerID = std::exchange(other.m_headerID, 0);
-		m_recsSection = std::exchange(other.m_recsSection, 0);
-		m_recsResource = std::exchange(other.m_recsResource, 0);
 		m_headerSize = std::exchange(other.m_headerSize, 0);
-		m_packagePwd = std::move(other.m_packagePwd);
-		m_resourceIDs = std::move(other.m_resourceIDs);
-		m_resourceMap = std::move(other.m_resourceMap);
+		m_headerPwd = std::move(other.m_headerPwd);
+		m_containerIDs = std::move(other.m_containerIDs);
 	}
 	return *this;
 }
@@ -489,34 +573,26 @@ PackageHeader& PackageHeader::operator=(PackageHeader &&other) noexcept {
 bool PackageHeader::operator==(const PackageHeader &other) {
 	if (this != &other) {
 		return (m_headerID == other.m_headerID &&
-				m_recsSection == other.m_recsSection &&
-				m_recsResource == other.m_recsResource &&
 				m_headerSize == other.m_headerSize &&
-				m_packagePwd == other.m_packagePwd &&
-				m_resourceIDs == other.m_resourceIDs &&
-				lower_copy(m_resourceMap) == lower_copy(other.m_resourceMap));
+				m_headerPwd == other.m_headerPwd &&
+				m_containerIDs == other.m_containerIDs);
 	} else {
 		return true;
 	}
 }
 
-bool PackageHeader::operator!=(const PackageHeader& other) {
+bool PackageHeader::operator!=(const PackageHeader &other) {
 	if (this != &other) {
 		return (m_headerID != other.m_headerID ||
-				m_recsSection != other.m_recsSection ||
-				m_recsResource != other.m_recsResource ||
 				m_headerSize != other.m_headerSize ||
-				m_packagePwd != other.m_packagePwd ||
-				m_resourceIDs != other.m_resourceIDs ||
-				lower_copy(m_resourceMap) != lower_copy(other.m_resourceMap));
+				m_headerPwd != other.m_headerPwd ||
+				m_containerIDs != other.m_containerIDs);
 	} else {
 		return false;
 	}
 }
 
-PackageHeader::~PackageHeader() {
-
-}
+PackageHeader::~PackageHeader() {}
 
 CompressOpResult PackageHeader::AddResourceSection(const std::wstring sectionPath) {
 	return CompressOpResult::Success;
@@ -576,30 +652,66 @@ bool PackageHandler::operator!=(const PackageHandler &other) {
 
 PackageHandler::~PackageHandler() {}
 
-CompressOpResult PackageHandler::CreatePackage(const std::wstring packFilename, const bool purgeObjectIfExist) {
+CompressOpResult PackageHandler::CreatePackage(const std::wstring packFilename,
+	const CompressHeaderInclude headerInclude, const CompressPwdHashType pwdHashType,
+	const std::wstring packPwd, const bool purgeObjectIfExists) {
 	if (!packFilename.length()) {
 		return CompressOpResult::Fail;
 	}
-	if (purgeObjectIfExist) {
+	if (purgeObjectIfExists) {
 		if (pathExists(packFilename)) {
 			if (FSOpResult::Success != removeObject(packFilename)) {
 				return CompressOpResult::Fail;
 			}
 		}
 	}
-
+	size_t packSz = (wcslen_c(gc_packStart) + wcslen_c(gc_packEnd)) * sizeof(unsigned char);
+	unsigned char* packageBuf = (unsigned char*)malloc(packSz);
+	if (!packageBuf) {
+		return CompressOpResult::Fail;
+	}
+	memset(packageBuf, 0, packSz);
+	sprintf((char*)packageBuf, "%s", wchar2char(gc_packStart));
+	std::wstring pwdHash;
+	if (CompressHeaderInclude::Included == headerInclude) {
+		if (CompressPwdHashType::NoPwd != pwdHashType) {
+			size_t pwdLen = packPwd.length();
+			if (pwdLen && COMPRESS_PWDMAXLEN >= pwdLen) {
+				if (CryptOpResult::Success != calcBufferHash(pwdHash, (unsigned char*)packPwd.c_str(),
+					pwdLen * sizeof(unsigned char), static_cast<HashType>(pwdHashType))) {
+					return CompressOpResult::Fail;
+				}
+			} else {
+				return CompressOpResult::Fail;
+			}
+		} else {
+			size_t pwdLen = packPwd.length();
+			if (pwdLen && COMPRESS_PWDMAXLEN >= pwdLen) {
+				pwdHash = packPwd;
+			} else {
+				return CompressOpResult::Fail;
+			}
+		}
+	} else if (CompressHeaderInclude::Excluded == headerInclude) {
+	}
+	sprintf((char*)&packageBuf[packSz - (wcslen_c(gc_packEnd) * sizeof(unsigned char))], "%s",
+		wchar2char(gc_packEnd));
+	/*memcpy(packageBuf, gc_packStart, wcslen_c(gc_packStart) * sizeof(wchar_t));
+	memcpy(&packageBuf[packSz - (wcslen_c(gc_packEnd) * sizeof(wchar_t))], gc_packEnd,
+		wcslen_c(gc_packEnd) * sizeof(wchar_t));*/
+	SAFE_FREE(packageBuf);
 	return CompressOpResult::Success;
 }
 
 CompressOpResult PackageHandler::CreatePackage(const std::wstring packFilename,
-	const std::vector<std::wstring> filePaths, const bool purgeObjectIfExist) {
+	const std::vector<std::wstring> filePaths, const bool purgeObjectIfExists) {
 	if (!packFilename.length()) {
 		return CompressOpResult::Fail;
 	}
 	if (!filePaths.size()) {
 		return CompressOpResult::Fail;
 	}
-	if (purgeObjectIfExist) {
+	if (purgeObjectIfExists) {
 		if (pathExists(packFilename)) {
 			if (FSOpResult::Success != removeObject(packFilename)) {
 				return CompressOpResult::Fail;

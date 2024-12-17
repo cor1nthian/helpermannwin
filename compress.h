@@ -7,10 +7,12 @@
 #include "fshelper.h"
 
 const wchar_t* const gc_noCompression = L"nocompression";
-const wchar_t* const gc_headerStart = L"BHDR\1";
-const wchar_t* const gc_headerEnd = L"\1";
-const wchar_t* const gc_packStart = L"BFP\2";
-const wchar_t* const gc_packEnd = L"\2";
+const wchar_t* const gc_packStart = L"BPACK\1";
+const wchar_t* const gc_packEnd = L"\1";
+const wchar_t* const gc_headerStart = L"BHDR\2";
+const wchar_t* const gc_headerEnd = L"\2";
+const wchar_t* const gc_resourceStart = L"BFP\3";
+const wchar_t* const  gc_resourceEnd = L"\3";
 
 // snappy compressor is skipped
 const std::vector<std::wstring> const gc_allowedCompressors{ gc_noCompression, L"blosclz", L"lz4", L"lz4hc", L"zlib",
@@ -21,11 +23,16 @@ enum class CompressOpResult : unsigned char {
 	Fail
 };
 
-enum class CompressPwdHashType : unsigned char {
+enum class CompressPwdHashType : unsigned long {
 	NoPwd,
-	MD5Hash,
-	SHA1Hash,
-	SHA256Hash
+	MD5Hash = CALG_MD5,
+	SHA1Hash = CALG_SHA1,
+	SHA256Hash = CALG_SHA_256
+};
+
+enum class CompressHeaderInclude : unsigned char {
+	Included,
+	Excluded
 };
 
 enum class ShuffleOp : unsigned char {
@@ -45,12 +52,20 @@ hminline size_t getDecompressedBufferSz(const unsigned char* compressedBuf, cons
 	size_t bufSz = 0;
 	if (COMPRESS_BLOSC_INVALIDVAL == blosc_cbuffer_validate(compressedBuf, bufferSize, &bufSz)) {
 		return 0;
-	}
-	else {
+	} else {
 		return bufSz;
 	}
 }
 
+hminline const wchar_t* getCpmpressorName(const unsigned char index) {
+	if (gc_allowedCompressors.size() > index) {
+		return gc_allowedCompressors[index].c_str();
+	} else {
+		return L"";
+	}
+}
+
+unsigned char getCompressorIndex(const std::wstring compressorName);
 bool checkCompressor(const std::wstring compressorName);
 
 /*
@@ -58,6 +73,9 @@ bool checkCompressor(const std::wstring compressorName);
 _________________________________________
 |  HEADER MIGHT NOT BE PRESENT IN PACK  |
 |_______________________________________|
+|          PACKAGE START SIGN           |
+|_______________________________________|
+|                                       |
 |           HEADER START SIGN           |
 |_______________________________________|
 |                                       |
@@ -65,9 +83,6 @@ _________________________________________
 |_______________________________________|
 |                                       |
 |           HEADER PWD HASH             |
-|_______________________________________|
-|                                       |
-|             HEADER SIZE               |
 |_______________________________________|
 |                                       |
                HEADER ID                |
@@ -79,37 +94,52 @@ _________________________________________
 |            PACK RECORDS NUM           |
 |_______________________________________|
 |                                       |
-|           CONTRAINER RECORDS NUM      |
+|          CONTAINER RECORDS NUM        |
 |_______________________________________|
 |                                       |
-|              CONTRAINER 1 ID          |
+|            CONTAINER 1 ID             |
 |_______________________________________|
 |                                       |
-|           CONTRAINER 1 PATH           |
+|        CONTAINER 1 STRING ID          |
+|_______________________________________|
+|                                       |
+|           CONTAINER 1 PATH            |
 |_______________________________________|
 |                                       |
 |                  ...                  |
 |_______________________________________|
 |                                       |
-|            CONTRAINER M ID            |
+|            CONTAINER N ID             |
 |_______________________________________|
 |                                       |
-  |         CONTRAINER N PATH           |
+|        CONTAINER N STRING ID          |
 |_______________________________________|
 |                                       |
-|            RESOURCE 1 ID              |
+|           CONTAINER N PATH            |
 |_______________________________________|
 |                                       |
-|     RESOURCE 1 HEADER OWNER ID        |
+|             HEADER SIZE               |
 |_______________________________________|
 |                                       |
-|    RESOURCE 1 CONTAINER OWNER ID      |
+|           HEADER END SIGN             |
+|_______________________________________|
+|                                       |
+|       PACKAGE DATA START SIGN         |
+|_______________________________________|
+|                                       |
+|         RESOURCE 1 STRING ID          |
+|_______________________________________|
+|                                       |
+|      RESOURCE 1 HEADER OWNER ID       |
+|_______________________________________|
+|                                       |
+| RESOURCE 1 CONTAINER OWNER STRING ID  |
 |_______________________________________|
 |                                       |
 |       RESOURCE 1 COMPRESSOR IDX       |
 |_______________________________________|
 |                                       |
-|      RESOURCE N START DATA OFFSET     |
+|      RESOURCE 1 START DATA OFFSET     |
 |_______________________________________|
 |                                       |
 |       RESOURCE 1 ORIGINAL SIZE        |
@@ -121,16 +151,19 @@ _________________________________________
 |       RESOURCE 1 INTERNAL PATH        |
 |_______________________________________|
 |                                       |
+|           RESOURCE 1 DATA             |
+|_______________________________________|
+|                                       |
 |                  ...                  |
 |_______________________________________|
 |                                       |
-|             RESOURCE N ID             |
+|         RESOURCE N STRING ID          |
 |_______________________________________|
 |                                       |
 |      RESOURCE N HEADER OWNER ID       |
 |_______________________________________|
 |                                       |
-|     RESOURCE N CONTAINER OWNER ID     |
+| RESOURCE N CONTAINER OWNER STRING ID  |
 |_______________________________________|
 |                                       |
 |       RESOURCE N COMPRESSOR IDX       |
@@ -148,22 +181,13 @@ _________________________________________
 |        RESOURCE N INTERNAL PATH       |
 |_______________________________________|
 |                                       |
-|            HEADER END SIGN            |
-|_______________________________________|
-|                                       |
-|       PACKAGE DATA START SIGN         |
-|_______________________________________|
-|                                       |
-|           RESOURCE 1 DATA             |
-|_______________________________________|
-|                                       |
-|                  ...                  |
-|_______________________________________|
-|                                       |
 |          RESOURCE N DATA              |
 |_______________________________________|
 |                                       |
 |        PACKAGE DATA END SIGN          |
+|_______________________________________|
+|                                       |
+|          PACKAGE END SIGN             |
 |_______________________________________|
 */
 
@@ -176,8 +200,10 @@ class CompressHandler;
 class PackageContainer {
 	public:
 		PackageContainer();
-		PackageContainer(const unsigned long containerID);
-		PackageContainer(const unsigned long containerID, const std::vector<unsigned long> resourceIDs);
+		PackageContainer(const unsigned long containerID, const std::wstring conrainerStrID,
+			const std::wstring containerPath);
+		PackageContainer(const unsigned long containerID, const std::wstring conrainerStrID,
+			const std::wstring containerPath, const std::vector<unsigned long> resourceIDs);
 		PackageContainer(const PackageContainer &other);
 #if (defined(STDVER) && STDVER >= 11 && STDVER != 98)
 		PackageContainer(PackageContainer &&other) noexcept;
@@ -189,23 +215,39 @@ class PackageContainer {
 		bool operator==(const PackageContainer &other);
 		bool operator!=(const PackageContainer& other);
 		~PackageContainer();
+		unsigned long GetContainerID() const;
+		std::wstring GetContainerStrID() const;
+		std::wstring GetContainerPath() const;
+		CompressOpResult SetContainerID(unsigned long containerID);
+		CompressOpResult SetContainerStrID(const std::wstring containerStrID);
+		CompressOpResult SetContainerPath(const std::wstring containerPath);
+		friend class PackageResource;
+		friend class PackageHeader;
+		friend class PackageHandler;
+		friend class CompressHandler;
 	protected:
 	private:
+		/*       FUNCTIONS       */
+		CompressOpResult generateContainerStrID(std::wstring& containerStrID);
+		/*       VARIABLES       */
 		unsigned long m_containerID;
-		std::vector<unsigned long> m_resourceIDs;
+		std::wstring m_containerPath;
+		std::wstring m_containerStrID;
+		std::vector<unsigned long> m_containerIDs;
+		std::vector<std::wstring> m_resources;
 };
 
 class PackageResource {
 	public:
 		PackageResource();
 		PackageResource(const unsigned char compressor, const unsigned short nameLen, const unsigned long resourceID,
-			const unsigned long headerOwnerID, const unsigned long containerOwnerID,
-			const unsigned long long startOffset, const size_t sizeOriginal, const size_t sizeCompressed,
-			const std::wstring resourcePath);
+			const std::wstring resourceStrID, const std::wstring resourceName, const unsigned long headerOwnerID,
+			const unsigned long containerOwnerID, const unsigned long long startOffset, const size_t sizeOriginal,
+			const size_t sizeCompressed, const std::wstring resourcePath);
 		PackageResource(const unsigned char compressor, const unsigned short nameLen, const unsigned long resourceID, 
-			const unsigned long headerOwnerID, const unsigned long containerOwnerID,
-			const unsigned long long startOffset, const size_t sizeOriginal, const size_t sizeCompressed,
-			const unsigned char* resourceBuffer, const std::wstring resourcePath);
+			const std::wstring resourceStrID, const std::wstring resourceName, const unsigned long headerOwnerID,
+			const unsigned long containerOwnerID, const unsigned long long startOffset, const size_t sizeOriginal,
+			const size_t sizeCompressed, const unsigned char* resourceBuffer, const std::wstring resourcePath);
 		PackageResource(const PackageResource &other);
 #if (defined(STDVER) && STDVER >= 11 && STDVER != 98)
 		PackageResource(PackageResource &&other);
@@ -227,6 +269,8 @@ class PackageResource {
 		size_t GetSizeCompressed() const;
 		unsigned char* GetResourceBuffer() const;
 		std::wstring GetResourcePath() const;
+		std::wstring GetResourceStrID() const;
+		std::wstring GetResourceMame() const;
 		CompressOpResult SetCompressor(const unsigned char compressor);
 		CompressOpResult SetCompressor(const std::wstring compressor);
 		CompressOpResult SetHeaderOwnerID(const unsigned long ownerID);
@@ -236,6 +280,8 @@ class PackageResource {
 		CompressOpResult SetCompressedSize(const size_t sizeCompressedl);
 		CompressOpResult SetResourceSizes(const size_t sizeOriginal, const size_t sizeCompressed);
 		CompressOpResult SetResourceBuffer(const unsigned char* resourceBuffer);
+		CompressOpResult SetResourceStrID(const std::wstring resourceStrID);
+		CompressOpResult SetResourceNmae(const std::wstring resourceName);
 		CompressOpResult SetResourcePath(const std::wstring resourcePath);
 		CompressOpResult SetResourceData(const unsigned char compressor, const size_t sizeOriginal,
 			const size_t sizeCompressed, const unsigned char* resourceBuffer, const std::wstring resourcePath);
@@ -245,6 +291,9 @@ class PackageResource {
 		friend class CompressHandler;
 	protected:
 	private:
+		/*       FUNCTIONS       */
+		CompressOpResult generateResourceStrID(std::wstring &resourceStrID);
+		/*       VARIABLES       */
 		unsigned char m_compressor; // index
 		unsigned short m_nameLen;
 		unsigned long m_resourceID;
@@ -254,14 +303,15 @@ class PackageResource {
 		size_t m_sizeOriginal;
 		size_t m_sizeCompressed;
 		unsigned char* m_resourceBuffer;
+		std::wstring m_resourceName;
+		std::wstring m_resourceStrID;
 		std::wstring m_resourcePath;
 };
 
 class PackageHeader {
 	public:
 		PackageHeader();
-		PackageHeader(const unsigned long headerID, const unsigned long recsSection,
-			const unsigned long recsResource, const unsigned long headerSize, const std::wstring packagePwd,
+		PackageHeader(const unsigned long headerID, const unsigned long headerSize, const std::wstring packagePwd,
 			const std::vector<std::wstring> resourceMap, const std::vector<unsigned long> resources);
 		PackageHeader(const PackageHeader &other);
 #if (defined(STDVER) && STDVER >= 11 && STDVER != 98)
@@ -276,20 +326,19 @@ class PackageHeader {
 		~PackageHeader();
 		CompressOpResult SetPackagePwd(const std::wstring pwd);
 		CompressOpResult AddResourceSection(const std::wstring sectionPath);
-		CompressOpResult CreateHeader();
 		friend class PackageContainer;
 		friend class PackageResource;
 		friend class PackageHandler;
 		friend class CompressHandler;
 	protected:
 	private:
+		/*       FUNCTIONS       */
+		/*       VARIABLES       */
 		unsigned long m_headerID;
-		unsigned long m_recsSection;
-		unsigned long m_recsResource;
 		unsigned long m_headerSize;
-		std::wstring m_packagePwd;
-		std::vector<std::wstring> m_resourceMap;
-		std::vector<unsigned long> m_resourceIDs;
+		std::wstring m_headerPwd;
+		std::vector<unsigned long> m_headerIDs;
+		std::vector<std::wstring> m_containerIDs;
 };
 
 class PackageHandler {
@@ -307,9 +356,12 @@ class PackageHandler {
 		bool operator==(const PackageHandler &other);
 		bool operator!=(const PackageHandler &other);
 		~PackageHandler();
-		CompressOpResult CreatePackage(const std::wstring packFilename, const bool purgeObjectIfExist = true);
+		CompressOpResult CreatePackage(const std::wstring packFilename,
+			const CompressHeaderInclude headerInclude = CompressHeaderInclude::Included,
+			const CompressPwdHashType pwdHashType = CompressPwdHashType::MD5Hash,
+			const std::wstring packPwd = L"123", const bool purgeObjectIfExists = true);
 		CompressOpResult CreatePackage(const std::wstring packFilename, const std::vector<std::wstring> filePaths,
-			const bool purgeObjectIfExist = true);
+			const bool purgeObjectIfExists = true);
 		CompressOpResult ReadPackageHeader(const std::wstring objectPath);
 		CompressOpResult IsHeadder(bool &isHeader, const std::wstring objectPath);
 		CompressOpResult IsPackage(bool &isPackage, const std::wstring objectPath);
@@ -319,6 +371,8 @@ class PackageHandler {
 		friend class CompressHandler;
 	protected:
 	private:
+		/*       FUNCTIONS       */
+		/*       VARIABLES       */
 		std::vector<unsigned long> m_headerIDs;
 };
 

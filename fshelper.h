@@ -568,7 +568,7 @@ class FSHandler {
 			::HMODULE ntDLLModule);
 		std::wstring calcHash(const std::wstring filePath,
 			const HashType hashType, const bool hashUCase = true);
-		FSOpResult getSHFileOpDesc(const unsigned long msgCode, std::wstring* msgStr) const;
+		FSOpResult getSHFileOpDesc(const unsigned long msgCode, std::wstring *msgStr) const;
 };
 
 #endif // _FS_HELPER_H

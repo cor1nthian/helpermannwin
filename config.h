@@ -184,7 +184,7 @@ typedef long NTSTATUS;
     #define FSH_READBUFSZ               32768
 #endif
 #ifdef _WIN64
-    #define FSH_WRITEBUFSZ              20
+    #define FSH_WRITEBUFSZ              20 // 65536
 #else
     #define FSH_WRITEBUFSZ              32768
 #endif
@@ -224,11 +224,11 @@ typedef long NTSTATUS;
 #define MSSQLDISPLAYFORMATEXTRA	        3  // Per column extra display bytes (| <data> )
 #define MSSQLDISPLAYFORMAT		        L"%c %*.*s "
 #define MSSQLDISPLAYFORMATC		        L"%c %-*.*s "
-// max connection out buffer size, characters
+// min connection out buffer size, symbols
+#define MSSQLMINOUTBUF			        1024
+// max connection out buffer size, symbols
 #define MSSQLMAXOUTBUF			        2048
 #define MSSQLMAXINFOBUF			        1024
-// min connection out buffer size, characters
-#define MSSQLMINOUTBUF			        1024
 #define MSSQLCONNTOOMANY		        -1
 
 // WMI Helper defines
@@ -248,10 +248,20 @@ typedef long NTSTATUS;
 #define COMPRESS_BLOSC_THREADSMIN       1
 #define COMPRESS_BLOSC_THREADSMAX       12
 #define COMPRESS_BLOSC_MAXBLOCKSZ       4096
-#define COMPRESS_MAX_RESOURCESZ         209715200 // 200 mb
+#define COMPRESS_MAX_RESOURCESZ         209715200   // 200 mb
+#define COMPRESS_PWDMAXLEN              16          // symbols
+#define COMPRESS_RESOURCEIDMAXIDLEN     16          // symbols
+#define COMPRESS_MAXRESOURCES           200000
+#define COMPRESS_MINCONTAINERID         100000
+#define COMPRESS_MAXCONTAINERID         (COMPRESS_MINCONTAINERID + COMPRESS_MAXRESOURCES)
+#define COMPRESS_MINRESOURCEID          (100000 + COMPRESS_MAXCONTAINERID)
+#define COMPRESS_MAXRESOURCEID          (COMPRESS_MAXRESOURCES + COMPRESS_MINRESOURCEID)
+#define COMPRESS_MIHEADERID             (100000 + COMPRESS_MAXRESOURCEID)
+#define COMPRESS_MAXEADERID             (COMPRESS_MAXRESOURCES + COMPRESS_MIHEADERID)
 
-// Crupthelper defines
+// Crypthelper defines
 #define CH_MAXLENMD5                    32
 #define CH_MAXLENSHA1                   40
 #define CH_MAXLENSHA256                 64
+
 #endif // _CONFIG_H

@@ -77,8 +77,10 @@ int wmain(int argc, wchar_t* argv[]) {
 	WMIHandler wmih;
 	MSSQLDBHandler mssqlh;
 	CompressHandler cmph;
+	PackageHandler phndl;
 	std::wstring resname;
 	std::wstring hh;
+	phndl.CreatePackage(L"C:\\Users\\admin\\Desktop\\123.pack");
 	calcFileHash(hh, L"C:\\Users\\admin\\Desktop\\add2contextmenu.reg", HashType::SHA1);
 	std::wcout << hh << std::endl;
 	sys.GetResourceNameByID(resname, 101);

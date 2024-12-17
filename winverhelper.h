@@ -51,7 +51,7 @@ enum class WinVerCore : unsigned char {
 };
 
 enum class WinVerAdvanced : unsigned char {
-	Win2000 = 0,
+	Win2000,
 	WinSrv2000,
 	WinXP,
 	WinXP64,

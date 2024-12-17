@@ -165,7 +165,7 @@ enum class SidType : unsigned char {
 
 bool IsBadReadPtr(void* p);
 bool IsBadWritePtr(void* p);
-int rnd(const int from, const int to);
+long long rnd(const long long from, const long long to);
 bool IsSIDWellKnown(const std::wstring strsid);
 bool IsSIDWellKnown(const ::PSID sid);
 std::vector<WKSid> GetWellKnownStrSIDs(::PSID domainSID = 0);
@@ -332,16 +332,20 @@ class SysHandler {
 			[in] resource id in resource file
 			Returns true on success, false on failure */
 		bool ExtractResource(const std::wstring extractPath, const unsigned long resId) const;
-		/* Checks if current x86 process runs under Wow64 environment
+		/* Checks if current x86 process runs under Wow64 environment /
+			Checks if current provess is x86 under x64 system
 			Param:
 			None
-			Returns true if current x86 process runs under Wow64 environment, false otherwise */
+			Returns true if current x86 process runs under Wow64 environment /
+			Returns true if current provess is x86 under x64 system, false otherwise */
 		bool IsWow64Proc() const;
-		/* Checks if a given x86 process runs under Wow64 environment
+		/* Checks if a given x86 process runs under Wow64 environment /
+			Checks if a given provess is x86 runming under x64 system
 			Param:
 			[in] [mandatory] process id
 			[in] [optional] [default - PROCESS_ALL_ACCESS] roghts to open requested process
-			Returns true if current x86 process runs under Wow64 environment, false otherwise */
+			Returns true if a given x86 process runs under Wow64 environment /
+			Returns true if a given x86 process runs under x64 system, false otherwise */
 		bool IsWow64Proc(const unsigned long pid, const unsigned long desiredProcRights = PROCESS_ALL_ACCESS) const;
 		/* Converts string SID to SID type
 			Param:
